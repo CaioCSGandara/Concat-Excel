@@ -1,5 +1,5 @@
 """
-Main application window for Concat Excel.
+Main application window for Concatenador de Dados.
 
 Implements a sidebar-navigation layout with three views:
   - Home (import workflow)
@@ -8,7 +8,10 @@ Implements a sidebar-navigation layout with three views:
 """
 from __future__ import annotations
 
+import sys
+import tkinter as tk
 from collections.abc import Callable
+from pathlib import Path
 from typing import Union
 
 import customtkinter as ctk
@@ -26,7 +29,7 @@ AnyView = Union[HomeView, MappingsView, SettingsView]
 class AppWindow(ctk.CTk):
     """Root application window."""
 
-    _WINDOW_TITLE: str = "Concat Excel"
+    _WINDOW_TITLE: str = "Concatenador de Dados"
     _WINDOW_SIZE: str = "1180x720"
     _WINDOW_MIN: tuple[int, int] = (960, 600)
 
@@ -53,6 +56,33 @@ class AppWindow(ctk.CTk):
         self.geometry(self._WINDOW_SIZE)
         self.minsize(*self._WINDOW_MIN)
 
+        # ── Ícone da janela e barra de tarefas ─────────────────────────
+        if getattr(sys, "frozen", False):
+            # Executando como .exe gerado pelo PyInstaller
+            base_path = Path(sys._MEIPASS)  # type: ignore[attr-defined]
+        else:
+            # Executando em desenvolvimento
+            base_path = Path(__file__).parent.parent.parent  # raiz do projeto
+
+        icon_path = base_path / "assets" / "icon.ico"
+        png_path = base_path / "assets" / "icon.png"
+
+        # No Windows, self.iconbitmap carrega nativamente as 7 camadas do .ico
+        # (16px para titlebar, 24px/32px para taskbar, 48px para Alt+Tab).
+        # Não chamamos self.wm_iconphoto por cima, pois o Tkinter sobrescreveria
+        # o .ico nativo com um redimensionamento grosseiro de imagem.
+        if icon_path.exists():
+            try:
+                self.iconbitmap(str(icon_path))
+            except Exception:
+                pass
+        elif png_path.exists():
+            try:
+                self._icon_photo = tk.PhotoImage(file=str(png_path))
+                self.wm_iconphoto(True, self._icon_photo)
+            except Exception:
+                pass
+
     # ------------------------------------------------------------------
     # Layout
     # ------------------------------------------------------------------
@@ -65,28 +95,52 @@ class AppWindow(ctk.CTk):
         self._build_content_area()
 
     def _build_sidebar(self) -> None:
-        sidebar = ctk.CTkFrame(self, width=230, corner_radius=0)
+        sidebar = ctk.CTkFrame(self, width=265, corner_radius=0)
         sidebar.grid(row=0, column=0, sticky="nsew")
         sidebar.grid_propagate(False)
         sidebar.grid_rowconfigure(8, weight=1)  # spacer
 
         # ── Logo ──────────────────────────────────────────────────────
         logo_frame = ctk.CTkFrame(sidebar, fg_color="transparent")
-        logo_frame.grid(row=0, column=0, padx=20, pady=(28, 8), sticky="ew")
+        logo_frame.grid(row=0, column=0, padx=16, pady=(28, 8), sticky="ew")
 
-        ctk.CTkLabel(
-            logo_frame,
-            text="⬇",
-            font=ctk.CTkFont(size=32),
-        ).pack(side="left", padx=(0, 10))
+        # Resolve asset path
+        if getattr(sys, "frozen", False):
+            base_path = Path(sys._MEIPASS)  # type: ignore[attr-defined]
+        else:
+            base_path = Path(__file__).parent.parent.parent
+
+        png_path = base_path / "assets" / "icon.png"
+        has_logo = False
+        if png_path.exists():
+            try:
+                from PIL import Image
+
+                pil_img = Image.open(png_path)
+                self._sidebar_logo_img = ctk.CTkImage(
+                    light_image=pil_img, dark_image=pil_img, size=(34, 34)
+                )
+                ctk.CTkLabel(
+                    logo_frame, text="", image=self._sidebar_logo_img
+                ).pack(side="left", padx=(0, 8))
+                has_logo = True
+            except Exception:
+                pass
+
+        if not has_logo:
+            ctk.CTkLabel(
+                logo_frame,
+                text="⬇",
+                font=ctk.CTkFont(size=30),
+            ).pack(side="left", padx=(0, 8))
 
         title_frame = ctk.CTkFrame(logo_frame, fg_color="transparent")
-        title_frame.pack(side="left")
+        title_frame.pack(side="left", fill="x", expand=True)
 
         ctk.CTkLabel(
             title_frame,
-            text="Concat Excel",
-            font=ctk.CTkFont(size=18, weight="bold"),
+            text="Concatenador de Dados",
+            font=ctk.CTkFont(size=14, weight="bold"),
             anchor="w",
         ).pack(anchor="w")
         ctk.CTkLabel(

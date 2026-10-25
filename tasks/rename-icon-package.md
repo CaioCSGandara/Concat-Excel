@@ -14,43 +14,43 @@ O nome "Concat Excel" aparece em dois lugares na UI e deve ser alterado em ambos
 ### 1.1 — Título da barra de janela
 
 **Arquivo:** [`app/ui/app_window.py`](../app/ui/app_window.py)  
-**Linha 29:**
+**Linha 32:**
 
 ```python
 # ANTES
 _WINDOW_TITLE: str = "Concat Excel"
 
-# DEPOIS (substitua pelo novo nome)
-_WINDOW_TITLE: str = "Novo Nome Aqui"
+# DEPOIS
+_WINDOW_TITLE: str = "Concatenador de Dados"
 ```
 
-Essa constante é usada em `_setup_window()` (linha 52) via `self.title(self._WINDOW_TITLE)`. Alterar apenas a constante é suficiente.
+Essa constante é usada em `_setup_window()` via `self.title(self._WINDOW_TITLE)`.
 
 ### 1.2 — Texto na sidebar (logo)
 
 **Arquivo:** [`app/ui/app_window.py`](../app/ui/app_window.py)  
-**Linha 88:**
 
 ```python
 # ANTES
 ctk.CTkLabel(
     title_frame,
-    text="Concat Excel",       # ← alterar aqui
+    text="Concat Excel",
     ...
 )
 
 # DEPOIS
 ctk.CTkLabel(
     title_frame,
-    text="Novo Nome Aqui",     # ← novo nome
+    text="Concatenador de Dados",
+    font=ctk.CTkFont(size=14, weight="bold"),
     ...
 )
 ```
 
-O subtítulo logo abaixo ("Importador de planilhas") está na **linha 94** e também pode ser ajustado se necessário:
+O subtítulo logo abaixo ("Importador de planilhas") também pode ser ajustado se necessário:
 
 ```python
-text="Importador de planilhas",  # linha 94 — opcional alterar
+text="Importador de planilhas",
 ```
 
 ### 1.3 — Diretório de configurações (opcional)
@@ -65,7 +65,7 @@ Se o nome interno da pasta de dados do usuário também deve mudar (atualmente `
 _APP_DIR: str = ".concat-excel"
 
 # DEPOIS
-_APP_DIR: str = ".novo-nome"   # use kebab-case, com ponto inicial
+_APP_DIR: str = ".concatenador-dados"   # use kebab-case, com ponto inicial
 ```
 
 > ⚠️ Atenção: alterar esse valor fará o app não encontrar as configurações já salvas em `~/.concat-excel/`. Se o sistema já estiver em uso, faça a migração dos dados antes.
@@ -91,7 +91,7 @@ O ícone deve estar no formato `.ico` (Windows) e `.png` (sidebar da UI, opciona
 ### 2.2 — Ícone na janela (barra de título)
 
 **Arquivo:** [`app/ui/app_window.py`](../app/ui/app_window.py)  
-**Método `_setup_window()`** (a partir da linha 51). Adicione `self.iconbitmap(...)` após `self.title(...)`:
+**Método `_setup_window()`**:
 
 ```python
 def _setup_window(self) -> None:
@@ -104,20 +104,44 @@ def _setup_window(self) -> None:
     from pathlib import Path
 
     if getattr(sys, "frozen", False):
-        # Executando como .exe gerado pelo PyInstaller
         base_path = Path(sys._MEIPASS)  # type: ignore[attr-defined]
     else:
-        # Executando em desenvolvimento
         base_path = Path(__file__).parent.parent.parent  # raiz do projeto
 
     icon_path = base_path / "assets" / "icon.ico"
+    png_path = base_path / "assets" / "icon.png"
+
     if icon_path.exists():
         self.iconbitmap(str(icon_path))
+    if png_path.exists():
+        self._icon_photo = tk.PhotoImage(file=str(png_path))
+        self.wm_iconphoto(True, self._icon_photo)
 ```
 
-> O bloco `sys.frozen` é necessário porque o PyInstaller extrai os assets para um diretório temporário (`_MEIPASS`) durante a execução do `.exe`.
+### 2.3 — Ícone na barra de tarefas do Windows (AppUserModelID)
 
-### 2.3 — Ícone no empacotamento PyInstaller
+No Windows, quando um script Python é executado via `python.exe`, o sistema operacional agrupa a janela sob o processo genérico do Python na barra de tarefas e exibe o ícone padrão do Python.  
+Para exibir o ícone customizado na **barra de tarefas**, é necessário definir um `AppUserModelID` explícito no `main.py` antes de instanciar a janela:
+
+```python
+import sys
+import ctypes
+
+def _setup_windows_app_id() -> None:
+    if sys.platform == "win32":
+        app_id = "concat_excel.concatenador_dados.1.0"
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
+        except Exception:
+            pass
+```
+
+Para rodar em desenvolvimento sem abrir a janela preta de console do terminal, use:
+```powershell
+.\.venv\Scripts\pythonw.exe main.py
+```
+
+### 2.4 — Ícone no empacotamento PyInstaller
 
 O ícone precisa ser referenciado tanto na flag `--icon` quanto como dado embutido (`--add-data`). Veja a Parte 3.
 
@@ -148,9 +172,10 @@ pip install pyinstaller
 pyinstaller `
   --onefile `
   --windowed `
-  --name "NomeDoSistema" `
+  --name "ConcatenadorDeDados" `
   --icon "assets\icon.ico" `
   --add-data "assets\icon.ico;assets" `
+  --add-data "assets\icon.png;assets" `
   main.py
 ```
 
@@ -160,54 +185,23 @@ pyinstaller `
 | `--windowed` | Suprime o terminal/console ao abrir o app |
 | `--name` | Nome do arquivo `.exe` gerado |
 | `--icon` | Ícone exibido no arquivo `.exe` e na barra de tarefas |
-| `--add-data` | Embute o arquivo de ícone dentro do `.exe` (necessário para `iconbitmap` funcionar) |
-
-> **Separador de path no Windows:** use `;` em `--add-data` (Linux/Mac usam `:`).
-
-### 3.3 — Saída
-
-O executável gerado estará em:
-```
-dist\NomeDoSistema.exe
-```
-
-### 3.4 — Testar antes de distribuir
-
-```powershell
-.\dist\NomeDoSistema.exe
-```
-
-Verifique:
-- [ ] Janela abre sem console
-- [ ] Ícone aparece na barra de título e na barra de tarefas
-- [ ] Nome correto na barra de título
-- [ ] Configurações são salvas em `%USERPROFILE%\.concat-excel\settings.json` (ou novo nome)
-- [ ] Seleção de arquivo `.xlsx` funciona via diálogo de arquivo
-- [ ] Backup é criado corretamente
-- [ ] Importação funciona de ponta a ponta
-
-### 3.5 — Troubleshooting comum
-
-| Problema | Causa provável | Solução |
-|---|---|---|
-| Ícone não aparece na janela | Path do `.ico` errado no `_MEIPASS` | Verifique o bloco `sys.frozen` em `_setup_window` |
-| App abre e fecha imediatamente | Exceção não tratada | Remova `--windowed` temporariamente para ver o traceback no console |
-| `ModuleNotFoundError` no `.exe` | Dependência oculta não detectada | Adicione `--hidden-import nome_do_modulo` ao comando |
-| Antivírus bloqueia o `.exe` | Falso positivo comum com PyInstaller | Use `--onedir` em vez de `--onefile` (menos suspeito) |
+| `--add-data` | Embute os arquivos de ícone dentro do `.exe` |
 
 ---
 
 ## Resumo das Alterações
 
 ```
-app/ui/app_window.py
-  linha 29  → _WINDOW_TITLE (título da janela)
-  linha 88  → text= na CTkLabel (sidebar)
-  método _setup_window() → adicionar iconbitmap()
+main.py
+  → _setup_windows_app_id() (AppUserModelID para barra de tarefas no Windows)
 
-app/config/settings_manager.py
-  linha 16  → _APP_DIR (pasta de dados — somente se necessário)
+app/ui/app_window.py
+  → _WINDOW_TITLE = "Concatenador de Dados"
+  → sidebar width=265 (evita truncamento do nome)
+  → text="Concatenador de Dados" na CTkLabel
+  → método _setup_window() → iconbitmap() e wm_iconphoto()
 
 assets/
-  icon.ico  → ícone do sistema (criar pasta e arquivo)
+  icon.ico  → ícone do sistema (7 camadas multi-resolução)
+  icon.png  → ícone em PNG (com padding recortado)
 ```
