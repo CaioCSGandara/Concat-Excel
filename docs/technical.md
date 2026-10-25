@@ -76,7 +76,7 @@ class SettingsManager:
     def save(self, settings: AppSettings) -> None: ...  # Serializa e grava
 ```
 
-O arquivo é criado automaticamente no primeiro uso. Erros de desserialização resultam em configurações padrão (nunca travam o app).
+O arquivo é criado automaticamente no primeiro uso. Erros de desserialização ou permissão resultam em configurações padrão (nunca travam o app).
 
 ---
 
@@ -202,18 +202,32 @@ CRUD de mapeamentos. Operações:
 | Editar | Abre `MappingEditorDialog` com o mapping existente; edita in-place |
 | Excluir | Confirmação via `messagebox.askyesno`; filtra da lista por `id` |
 
-Após cada operação, chama `on_settings_change()` (persiste) e re-renderiza a lista.
+Após cada operação, chama `on_settings_change()` (persiste) e re-renderiza a lista. A abertura do modal é completamente desacoplada da tela principal.
 
 ---
 
 ### `app/ui/dialogs/mapping_editor_dialog.py`
 
-`CTkToplevel` modal para criar/editar um mapeamento.
+`CTkToplevel` modal avançado para criar ou editar um mapeamento com suporte a grandes planilhas.
 
-- **Colunas destino (mestre):** carregadas da planilha mestre atual (se configurada) via `pd.read_excel(..., nrows=0)`
-- **Colunas fonte:** carregadas de um arquivo `.xlsx` de referência selecionado pelo usuário no próprio dialog
-- **Pares de colunas:** lista scrollável de `(CTkComboBox fonte, CTkComboBox destino, botão remover)`
-- **Resultado:** atributo `dialog.result: Optional[Mapping]` — `None` se cancelado
+- **Seletores Independentes:**
+  - Carregador dedicado para a **Planilha de Origem (Fonte)**
+  - Carregador dedicado para a **Planilha de Destino (Mestre)**
+  - As colunas são lidas via `pd.read_excel(..., nrows=0)` sem dependência da planilha mestre global.
+- **Auto-população Assimétrica:**
+  - O método `_apply_file_columns(side, columns)` sincroniza a lista de pares.
+  - Carregar apenas destino cria as linhas com origem vazia (`""`).
+  - Carregar origem preenche os campos correspondentes na ordem. Colunas excedentes de um dos lados geram novas linhas com o lado oposto vazio.
+  - Linhas residuais onde ambos os lados ficam vazios são podadas automaticamente.
+- **Reordenação por Clicar e Arrastar (Drag and Drop):**
+  - Implementado com eventos nativos do Tkinter (`<ButtonPress-1>`, `<B1-Motion>`, `<ButtonRelease-1>`).
+  - **Isolamento de lado:** variáveis `_drag_side` e checagem de coordenadas horizontais (`winfo_rootx`, `winfo_width`) garantem que colunas de origem só trocam com colunas de origem, e colunas de destino só com colunas de destino.
+  - **Feedback visual:** badge flutuante (*topmost tooltip*) com o nome do item arrastado e borda verde destacada no slot de destino do *hover*.
+  - **Auto-scroll:** rolagem automática no `CTkScrollableFrame._parent_canvas` quando o cursor se aproxima das bordas superior/inferior.
+  - **Botões de apoio (▲ / ▼):** swap instantâneo com a linha anterior/próxima.
+- **Salvamento e Validação:**
+  - Apenas pares com ambos os lados preenchidos são convertidos em `ColumnMapping`. Pares com lados vazios são desconsiderados sem gerar erro.
+  - Requer nome de mapeamento preenchido e ao menos um par completo.
 
 ---
 

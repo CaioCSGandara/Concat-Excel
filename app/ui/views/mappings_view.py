@@ -148,7 +148,6 @@ class MappingsView(ctk.CTkFrame):
     def _create_mapping(self) -> None:
         dialog = MappingEditorDialog(
             parent=self.winfo_toplevel(),
-            master_sheet_path=self._settings.master_sheet_path,
         )
         self.wait_window(dialog)
         if dialog.result:
@@ -159,7 +158,6 @@ class MappingsView(ctk.CTkFrame):
     def _edit_mapping(self, mapping: Mapping) -> None:
         dialog = MappingEditorDialog(
             parent=self.winfo_toplevel(),
-            master_sheet_path=self._settings.master_sheet_path,
             mapping=mapping,
         )
         self.wait_window(dialog)
